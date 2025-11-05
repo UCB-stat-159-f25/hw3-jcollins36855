@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools >= 70", "numpy"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Binary Black Hole Signals in Ligo Open Data"
+authors = [
+  { name="Ligo Scientific Collaboration (LSC) and Jordan Collins", email="jcollins36855@berkeley.edu" },
+]
+description = "A Python Library to Explore LIGO Data"
+readme = "README.md"
+
+requires-python = ">=3.9"
+dependencies = [
+    python==3.9,
+    numpy==2.0,
+    scipy==1.13,
+    h5py==3.12,
+    matplotlib==3.9,
+    scipy==1.13,
+    ipykernel==6.29,
+]
+
+license = "BSD-3-Clause"
+license-files = ["LICEN[CS]E*"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent"
+]
+
+keywords = ["LIGO", "Black Holes"]
+
+[project.urls]
+Homepage = "https://github.com/UCB-stat-159-f25/hw3-jcollins36855"
+Issues = "https://github.com/UCB-stat-159-f25/hw3-jcollins36855/issues"
+
+[tool.setuptools]
+packages = ["ligotools"]
+
