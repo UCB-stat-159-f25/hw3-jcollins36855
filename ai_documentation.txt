@@ -1,0 +1,83 @@
+Prompt: I want a function for this that runs a test to make sure the output is a list
+Answer: def test_getsegs_returns_list():
+    """Test that getsegs returns a list (SegmentList)"""
+    
+    # Set up test parameters
+    start = 1126259446
+    stop = 1126259478
+    ifo = 'H1'
+    flag = 'DATA'
+    
+    # Run the function
+    result = getsegs(start, stop, ifo, flag=flag)
+    
+    # Test that result is a list (or SegmentList which should be list-like)
+    assert isinstance(result, (list, SegmentList)), f"Output should be a list or SegmentList, got {type(result)}"
+    
+    # Additional checks
+    print(f"✓ Test passed: Output is {type(result).__name__}")
+    print(f"  Number of segments: {len(result)}")
+    
+    # Check that each segment is a tuple with 2 elements
+    if len(result) > 0:
+        for i, seg in enumerate(result):
+            assert isinstance(seg, tuple), f"Segment {i} should be a tuple, got {type(seg)}"
+            assert len(seg) == 2, f"Segment {i} should have 2 elements (start, stop), got {len(seg)}"
+            print(f"  Segment {i}: {seg}")
+    else:
+        print("  No segments found")
+
+# Run the test
+test_getsegs_returns_list()
+
+Prompt: can we test to see if each element is a slice and  make sure that it would NOT work with the output of getstrain function
+Answer: def test_dq_channel_slices_and_getstrain_incompatibility():
+    """
+    Test that dq_channel_to_seglist returns slices,
+    and that it does NOT work with getstrain output (as warned in docstring)
+    """
+    
+    print("="*60)
+    print("TEST 1: Verify output contains slices")
+    print("="*60)
+    
+    # Create sample DQ channel (from loaddata-like output)
+    channel = np.array([1, 1, 0, 1, 1, 1])
+    result = dq_channel_to_seglist(channel, fs=4096)
+    
+    # Check it's a list
+    assert isinstance(result, list), f"Expected list, got {type(result)}"
+    print(f"✓ Output is a list")
+    
+    # Check each element is a slice
+    for i, element in enumerate(result):
+        if not isinstance(element, slice):
+            print(f"✗ FAILED: Element {i} should be a slice, got {type(element)}")
+            raise AssertionError(f"Element {i} is not a slice")
+        print(f"✓ Element {i} is a slice: {element}")
+    
+    print(f"✓ All {len(result)} elements are slices\n")
+    
+    print("="*60)
+    print("TEST 2: Verify it does NOT work with getstrain output")
+    print("="*60)
+    
+    # Simulate getstrain output structure (returns a dictionary, not raw channel)
+    try:
+        # This is what getstrain returns for DQ
+        getstrain_dq_output = {
+            'DATA': np.array([1, 1, 0, 1, 1]),
+            'CBC_CAT1': np.array([1, 1, 1, 1, 1]),
+            'CBC_CAT2': np.array([0, 0, 0, 0, 0])
+        }
+        
+        print("Attempting to use getstrain DQ output directly (should work if it has 'DEFAULT' key)...")
+        # This will fail unless there's a 'DEFAULT' key
+        result = dq_channel_to_seglist(getstrain_dq_output, fs=4096)
+        print(f"✗ UNEXPECTED: Function worked with getstrain output without 'DEFAULT' key")
+        
+    except KeyError as e:
+        print(f"✓ CORRECT: Function fails with getstrain DQ dict that lacks 'DEFAULT' key")
+        print(f"  Error: {e}")
+    
+    # Show the
