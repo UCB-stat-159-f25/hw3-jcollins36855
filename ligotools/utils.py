@@ -2,6 +2,12 @@
 import numpy as np
 from scipy.signal import butter, filtfilt
 from scipy.io import wavfile
+from scipy.signal import windows
+
+import matplotlib.pyplot as plt
+import matplotlib.mlab as mlab
+from scipy.interpolate import interp1d
+import os
 
 #####
 # function to whiten data
@@ -17,6 +23,7 @@ def whiten(strain, interp_psd, dt):
     white_hf = hf / np.sqrt(interp_psd(freqs)) * norm
     white_ht = np.fft.irfft(white_hf, n=Nt)
     return white_ht
+    
 #####
 # function to keep the data within integer limits, and write to wavfile:
 def write_wavfile(filename,fs,data):
@@ -37,3 +44,168 @@ def reqshift(data,fshift=100,sample_rate=4096):
     y[0:nbins]=0.
     z = np.fft.irfft(y)
     return z
+
+
+#####
+def matched_filter_analysis(strain_H1, strain_L1, time, template_p, template_c, 
+                            template_offset, fs, tevent, eventname, 
+                            strain_H1_whitenbp, strain_L1_whitenbp,
+                            bb, ab, normalization, whiten, filtfilt, dt,
+                            make_plots=True, plottype='png'):
+    """
+    Perform matched filter analysis on gravitational wave data.
+
+    Returns:
+    --------
+    results : dict
+        Dictionary containing SNR, timemax, d_eff, horizon for both detectors
+    template_L1 : array
+        Whitened and band-passed L1 template
+    template_H1 : array
+        Whitened and band-passed H1 template
+    """
+    
+    # -- PSD and window setup
+    NFFT = 4*fs
+    psd_window = np.blackman(NFFT)
+    NOVL = NFFT//2
+
+    template = (template_p + template_c*1.j) 
+    etime = time + template_offset
+    datafreq = np.fft.fftfreq(template.size)*fs
+    df = np.abs(datafreq[1] - datafreq[0])
+
+    try:   
+        dwindow = windows.tukey(template.size, alpha=1./8)
+    except: 
+        dwindow = windows.blackman(template.size)
+
+    template_fft = np.fft.fft(template*dwindow) / fs
+
+    results = {}
+    template_L1, template_H1 = None, None  # initialize outputs
+
+    # loop over detectors
+    dets = ['H1', 'L1']
+    for det in dets:
+
+        if det == 'L1': 
+            data = strain_L1.copy()
+        else:           
+            data = strain_H1.copy()
+
+        # -- PSD, FFT, matched filter, normalization
+        data_psd, freqs = mlab.psd(data, Fs=fs, NFFT=NFFT, window=psd_window, noverlap=NOVL)
+        data_fft = np.fft.fft(data*dwindow) / fs
+        power_vec = np.interp(np.abs(datafreq), freqs, data_psd)
+        optimal = data_fft * template_fft.conjugate() / power_vec
+        optimal_time = 2*np.fft.ifft(optimal)*fs
+
+        sigmasq = 1*(template_fft * template_fft.conjugate() / power_vec).sum() * df
+        sigma = np.sqrt(np.abs(sigmasq))
+        SNR_complex = optimal_time/sigma
+        peaksample = int(data.size / 2)
+        SNR_complex = np.roll(SNR_complex,peaksample)
+        SNR = abs(SNR_complex)
+        indmax = np.argmax(SNR)
+        timemax = time[indmax]
+        SNRmax = SNR[indmax]
+        d_eff = sigma / SNRmax
+        horizon = sigma/8
+        phase = np.angle(SNR_complex[indmax])
+        offset = (indmax - peaksample)
+
+        # -- Apply phase, offset, amplitude scaling to template
+        template_phaseshifted = np.real(template*np.exp(1j*phase))
+        template_rolled = np.roll(template_phaseshifted, offset) / d_eff
+
+        # -- Whiten and band-pass the template
+        template_whitened = whiten(template_rolled, interp1d(freqs, data_psd), dt)
+        template_match = filtfilt(bb, ab, template_whitened) / normalization
+
+        # -- Store in results
+        results[det] = {
+            'SNRmax': SNRmax,
+            'timemax': timemax,
+            'd_eff': d_eff,
+            'horizon': horizon,
+            'SNR': SNR,
+            'template_match': template_match
+        }
+
+        print(f"For detector {det}, maximum at {timemax:.4f} with SNR = {SNRmax:.1f}, "
+              f"D_eff = {d_eff:.2f}, horizon = {horizon:0.1f} Mpc")
+
+        # -- Assign templates for output
+        if det == 'L1':
+            template_L1 = template_match.copy()
+        else:
+            template_H1 = template_match.copy()
+
+        if make_plots:
+            # choose colors and strain for plotting
+            if det == 'L1': 
+                pcolor = 'g'
+                strain_whitenbp = strain_L1_whitenbp
+            else:
+                pcolor = 'r'
+                strain_whitenbp = strain_H1_whitenbp
+
+            # --- PLOTTING BLOCK (unchanged) ---
+            plt.figure(figsize=(10,8))
+            plt.subplot(2,1,1)
+            plt.plot(time-timemax, SNR, pcolor,label=det+' SNR(t)')
+            plt.grid('on')
+            plt.ylabel('SNR')
+            plt.xlabel(f'Time since {timemax:.4f}')
+            plt.legend(loc='upper left')
+            plt.title(det+' matched filter SNR around event')
+
+            plt.subplot(2,1,2)
+            plt.plot(time-timemax, SNR, pcolor,label=det+' SNR(t)')
+            plt.grid('on')
+            plt.ylabel('SNR')
+            plt.xlim([-0.15,0.05])
+            plt.xlabel(f'Time since {timemax:.4f}')
+            plt.legend(loc='upper left')
+            plt.savefig(os.path.join('figures',eventname+"_"+det+"_SNR."+plottype))
+
+            # -- Plot whitened data and template
+            plt.figure(figsize=(10,8))
+            plt.subplot(2,1,1)
+            plt.plot(time-tevent,strain_whitenbp,pcolor,label=det+' whitened h(t)')
+            plt.plot(time-tevent,template_match,'k',label='Template(t)')
+            plt.ylim([-10,10])
+            plt.xlim([-0.15,0.05])
+            plt.grid('on')
+            plt.xlabel(f'Time since {timemax:.4f}')
+            plt.ylabel('whitened strain (units of noise stdev)')
+            plt.legend(loc='upper left')
+            plt.title(det+' whitened data around event')
+
+            plt.subplot(2,1,2)
+            plt.plot(time-tevent,strain_whitenbp-template_match,pcolor,label=det+' resid')
+            plt.ylim([-10,10])
+            plt.xlim([-0.15,0.05])
+            plt.grid('on')
+            plt.xlabel(f'Time since {timemax:.4f}')
+            plt.ylabel('whitened strain (units of noise stdev)')
+            plt.legend(loc='upper left')
+            plt.title(det+' Residual whitened data after subtracting template')
+            plt.savefig(os.path.join('figures',eventname+"_"+det+"_matchtime."+plottype))
+
+            # -- Plot PSD and template
+            plt.figure(figsize=(10,6))
+            template_f = np.abs(template_fft)*np.sqrt(np.abs(datafreq)) / d_eff
+            plt.loglog(datafreq, template_f, 'k', label='template(f)*sqrt(f)')
+            plt.loglog(freqs, np.sqrt(data_psd), pcolor, label=det+' ASD')
+            plt.xlim(20, fs/2)
+            plt.ylim(1e-24, 1e-20)
+            plt.grid()
+            plt.xlabel('frequency (Hz)')
+            plt.ylabel('strain noise ASD (strain/rtHz), template h(f)*rt(f)')
+            plt.legend(loc='upper left')
+            plt.title(det+' ASD and template around event')
+            plt.savefig(os.path.join('figures',eventname+"_"+det+"_matchfreq."+plottype))
+
+    return results, template_L1, template_H1
