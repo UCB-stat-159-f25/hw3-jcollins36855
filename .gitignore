@@ -1,3 +1,6 @@
 
 # MyST build outputs
 _build
+#installed package
+ligotools.egg-info/
+build/

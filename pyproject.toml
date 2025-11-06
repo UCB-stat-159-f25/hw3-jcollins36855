@@ -1,9 +1,10 @@
 [build-system]
-requires = ["setuptools >= 70", "numpy"]
+requires = ["setuptools >= 70", "wheel", "numpy"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Binary Black Hole Signals in Ligo Open Data"
+name = "ligotools"
+version = "0.1.0"
 authors = [
   { name="Ligo Scientific Collaboration (LSC) and Jordan Collins", email="jcollins36855@berkeley.edu" },
 ]
@@ -17,7 +18,7 @@ dependencies = [
     "h5py==3.12",
     "matplotlib==3.9",
     "scipy==1.13",
-    "ipykernel==6.29",
+    "ipykernel==6.29"
 ]
 
 license = "BSD-3-Clause"
