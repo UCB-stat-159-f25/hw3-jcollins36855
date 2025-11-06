@@ -6,5 +6,7 @@ This project includes a tutorial about whitening, spectograms, waveforms, and ma
 
 The website is created by cleaning the repository structure of this project and adding the following details: an installable package, tests for readligo.py, the modularized functions of utils.py, tests for utils.py, a Myst file, a Binder link, a GitHub Pages, and a Makefile.
 
+Link to Myst website: https://ucb-stat-159-f25.github.io/hw3-jcollins36855/
+
 A link to the Binder for this project:
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/UCB-stat-159-f25/hw3-jcollins36855/HEAD?urlpath=%2Fdoc%2Ftree%2FLOSC_Event_tutorial.ipynb)
